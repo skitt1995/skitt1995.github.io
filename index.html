@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RANSOMBOARD // Threat Intelligence Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg-0: #060608;
+    --bg-1: #0c0c0f;
+    --bg-2: #131318;
+    --bg-3: #1a1a22;
+    --bg-hover: #1e1e28;
+    --text-0: #f0f0f2;
+    --text-1: #c8c8cc;
+    --text-2: #8888990;
+    --text-3: #55555f;
+    --border-0: #1e1e28;
+    --border-1: #2a2a35;
+    --red: #e04050;
+    --red-dim: #3a1520;
+    --red-soft: #cc4455;
+    --blue: #4488dd;
+    --blue-dim: #152035;
+    --green: #44bb66;
+    --green-dim: #153520;
+    --orange: #dd8833;
+    --orange-dim: #352515;
+    --purple: #8866cc;
+    --purple-dim: #201535;
+    --tile-bg: #181820;
+    --tile-border: #25252f;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-0);
+    color: var(--text-1);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ═══ NAVIGATION ═══ */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(6,6,8,0.88);
+    backdrop-filter: blur(24px) saturate(180%);
+    border-bottom: 1px solid var(--border-0);
+    height: 52px;
+    display: flex; align-items: center;
+    padding: 0 1.5rem;
+  }
+  .nav-inner {
+    max-width: 1440px; width: 100%; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 0.8rem; letter-spacing: 2.5px;
+    color: var(--text-0);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-brand .pulse {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{ opacity:1; box-shadow:0 0 8px var(--red); } 50%{ opacity:0.4; box-shadow:none; } }
+  .nav-links { display: flex; gap: 0.25rem; }
+  .nav-links a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; letter-spacing: 1.5px;
+    color: var(--text-3); text-decoration: none;
+    padding: 0.4rem 0.75rem; border-radius: 6px;
+    transition: all 0.2s;
+  }
+  .nav-links a:hover { color: var(--text-1); background: var(--bg-3); }
+
+  /* ═══ LAYOUT ═══ */
+  .container { max-width: 1440px; margin: 0 auto; padding: 0 1.5rem; }
+  main { padding-top: 52px; }
+  section { padding: 2.5rem 0; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+  }
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 4px;
+    color: var(--text-3); text-transform: uppercase;
+  }
+  .divider { height: 1px; background: var(--border-0); margin: 0; }
+
+  /* ═══ VESTABOARD TICKER ═══ */
+  #ticker {
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border-0);
+    padding: 1rem 0;
+    overflow: hidden;
+  }
+  .ticker-board {
+    display: flex; gap: 2px; justify-content: center;
+    padding: 0.75rem 1rem;
+    background: var(--bg-0);
+    border-radius: 8px;
+    border: 1px solid var(--border-0);
+  }
+  .ticker-tile {
+    width: 20px; height: 28px;
+    perspective: 150px; flex-shrink: 0;
+  }
+  .ticker-tile-inner {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 0.7rem;
+    color: var(--text-0);
+    background: var(--tile-bg);
+    border-radius: 2px;
+    border: 1px solid var(--tile-border);
+    position: relative;
+  }
+  .ticker-tile-inner::after {
+    content: ''; position: absolute;
+    left: 0; right: 0; top: 50%; height: 1px;
+    background: rgba(0,0,0,0.5);
+  }
+  .ticker-tile-inner.flipping { animation: flip 0.3s ease-in-out; }
+  @keyframes flip { 0%{transform:rotateX(0)} 50%{transform:rotateX(-90deg)} 100%{transform:rotateX(0)} }
+  .ticker-tile-inner.blank { background: #10101a; border-color: #181822; }
+  .ticker-tile-inner.red { color: var(--red); }
+  .ticker-tile-inner.dim { color: var(--text-3); }
+  .ticker-tile-inner.accent { color: var(--text-0); }
+
+  /* ═══ STAT VESTABOARDS ═══ */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem; margin-top: 1.25rem;
+  }
+  .stat-vesta {
+    background: var(--bg-0);
+    border: 1px solid var(--border-0);
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .stat-vesta-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.5rem; letter-spacing: 3px;
+    color: var(--text-3); text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .stat-vesta-board {
+    display: flex; gap: 2px; justify-content: center;
+  }
+  .stat-vesta-tile {
+    width: 26px; height: 36px;
+    perspective: 150px;
+  }
+  .stat-vesta-tile-inner {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 1.1rem;
+    color: var(--text-0);
+    background: var(--tile-bg);
+    border-radius: 3px;
+    border: 1px solid var(--tile-border);
+    position: relative;
+  }
+  .stat-vesta-tile-inner::after {
+    content: ''; position: absolute;
+    left: 0; right: 0; top: 50%; height: 1px;
+    background: rgba(0,0,0,0.5);
+  }
+  .stat-vesta-tile-inner.flipping { animation: flip 0.3s ease-in-out; }
+  .stat-vesta-tile-inner.blank { background: #10101a; border-color: #181822; }
+  .stat-vesta-tile-inner.red { color: var(--red); }
+  .stat-vesta-tile-inner.green { color: var(--green); }
+  .stat-vesta-tile-inner.orange { color: var(--orange); }
+  .stat-vesta-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem; color: var(--text-3); letter-spacing: 1px;
+  }
+
+  /* ═══ THREAT LEVEL ═══ */
+  .threat-level-wrap {
+    margin-top: 1rem;
+    background: var(--bg-1);
+    border: 1px solid var(--border-0);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    display: flex; align-items: center; gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .threat-gauge {
+    display: flex; align-items: center; gap: 0.75rem;
+  }
+  .threat-gauge-bar {
+    display: flex; gap: 3px;
+  }
+  .threat-gauge-seg {
+    width: 28px; height: 10px;
+    border-radius: 2px;
+    background: var(--bg-3);
+    transition: background 0.4s;
+  }
+  .threat-gauge-seg.active-green { background: var(--green); }
+  .threat-gauge-seg.active-yellow { background: #ccbb33; }
+  .threat-gauge-seg.active-orange { background: var(--orange); }
+  .threat-gauge-seg.active-red { background: var(--red); }
+  .threat-gauge-seg.active-critical { background: #ff2244; box-shadow: 0 0 8px rgba(255,34,68,0.4); }
+  .threat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 2px;
+  }
+  .threat-detail {
+    font-size: 0.75rem; color: var(--text-3); flex: 1;
+  }
+
+  /* ═══ LIVE CLOCK ═══ */
+  .live-clock {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 1.5px;
+    color: var(--text-3);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .live-clock .dot-live {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  /* ═══ NEWS FEED ═══ */
+  .news-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 0.75rem;
+  }
+  .news-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border-0);
+    border-radius: 10px;
+    padding: 1.25rem;
+    transition: border-color 0.2s;
+  }
+  .news-card:hover { border-color: var(--border-1); }
+  .news-card a { color: var(--text-0); text-decoration: none; }
+  .news-card a:hover { text-decoration: underline; }
+  .news-card-title {
+    font-size: 0.85rem; font-weight: 600;
+    color: var(--text-0); margin-bottom: 0.5rem; line-height: 1.4;
+  }
+  .news-card-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; color: var(--text-3);
+    display: flex; gap: 1rem; flex-wrap: wrap;
+  }
+
+  /* ═══ EXPORT BAR ═══ */
+  .export-bar {
+    display: flex; gap: 0.5rem; align-items: center;
+  }
+  .export-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 1px;
+    padding: 0.35rem 0.7rem;
+    background: transparent;
+    color: var(--text-3);
+    border: 1px solid var(--border-0);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .export-btn:hover { color: var(--text-1); border-color: var(--border-1); }
+
+  /* ═══ SEARCH BAR ═══ */
+  .search-section { padding-top: 2rem; }
+  .search-bar-wrap {
+    position: relative;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+  .search-bar {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    padding: 0.85rem 1.25rem 0.85rem 3rem;
+    background: var(--bg-2);
+    color: var(--text-0);
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-bar::placeholder { color: var(--text-3); }
+  .search-bar:focus {
+    border-color: #444;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.04);
+  }
+  .search-icon {
+    position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+    color: var(--text-3); font-size: 0.9rem; pointer-events: none;
+  }
+  .search-filters {
+    display: flex; gap: 0.5rem; justify-content: center;
+    margin-top: 0.75rem; flex-wrap: wrap;
+  }
+  .filter-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 1.5px;
+    padding: 0.35rem 0.75rem;
+    background: var(--bg-2);
+    color: var(--text-3);
+    border: 1px solid var(--border-0);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .filter-chip:hover { color: var(--text-1); border-color: var(--border-1); }
+  .filter-chip.active { color: var(--text-0); background: var(--bg-3); border-color: var(--border-1); }
+  .search-results { margin-top: 1.5rem; display: none; }
+  .search-results-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; color: var(--text-3);
+    letter-spacing: 2px; margin-bottom: 1rem;
+  }
+
+  /* ═══ DATA TABLE ═══ */
+  .data-table-wrap {
+    background: var(--bg-1);
+    border: 1px solid var(--border-0);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .data-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  .data-table thead { background: var(--bg-2); }
+  .data-table th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 2px;
+    color: var(--text-3); font-weight: 500;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-0);
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+  }
+  .data-table th:hover { color: var(--text-1); }
+  .data-table th .sort-arrow { margin-left: 4px; font-size: 0.5rem; }
+  .data-table td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: var(--text-1);
+    vertical-align: middle;
+  }
+  .data-table tbody tr { transition: background 0.15s; }
+  .data-table tbody tr:hover { background: var(--bg-hover); }
+  .data-table .name-cell { color: var(--text-0); font-weight: 500; }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 0.5px;
+    font-weight: 500;
+  }
+  .tag-red { background: var(--red-dim); color: var(--red-soft); }
+  .tag-blue { background: var(--blue-dim); color: var(--blue); }
+  .tag-green { background: var(--green-dim); color: var(--green); }
+  .tag-orange { background: var(--orange-dim); color: var(--orange); }
+  .tag-purple { background: var(--purple-dim); color: var(--purple); }
+  .date-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem; color: var(--text-3);
+  }
+
+  /* ═══ PAGINATION ═══ */
+  .pagination {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.5rem; padding: 1rem;
+    border-top: 1px solid var(--border-0);
+  }
+  .pagination button {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; letter-spacing: 1px;
+    padding: 0.4rem 0.75rem;
+    background: transparent;
+    color: var(--text-3);
+    border: 1px solid var(--border-0);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .pagination button:hover:not(:disabled) { color: var(--text-1); border-color: var(--border-1); }
+  .pagination button:disabled { opacity: 0.25; cursor: default; }
+  .pagination .page-info {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; color: var(--text-3); letter-spacing: 1px;
+    padding: 0 0.5rem;
+  }
+
+  /* ═══ CHARTS ═══ */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1rem;
+  }
+  .chart-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border-0);
+    border-radius: 10px;
+    padding: 1.5rem;
+  }
+  .chart-card-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 2.5px;
+    color: var(--text-3); margin-bottom: 1rem;
+    text-transform: uppercase;
+  }
+  .chart-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 280px;
+  }
+  .chart-canvas-wrap canvas { width: 100% !important; height: 100% !important; }
+
+  /* ═══ GROUP PROFILES ═══ */
+  .group-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.75rem;
+  }
+  .group-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border-0);
+    border-radius: 10px;
+    padding: 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .group-card:hover { border-color: var(--border-1); background: var(--bg-3); }
+  .group-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+  .group-card-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem; font-weight: 600;
+    color: var(--text-0); letter-spacing: 0.5px;
+  }
+  .group-card-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; color: var(--red-soft);
+    background: var(--red-dim);
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .group-card-bar {
+    height: 4px;
+    background: var(--bg-0);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+  .group-card-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--red) 0%, var(--orange) 100%);
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+  .group-card-meta {
+    font-size: 0.7rem; color: var(--text-3);
+    display: flex; gap: 1rem;
+  }
+
+  /* ═══ BROWSE CONTROLS ═══ */
+  .browse-controls {
+    display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  }
+  .browse-controls select {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem; letter-spacing: 1px;
+    padding: 0.45rem 0.75rem;
+    background: var(--bg-2);
+    color: var(--text-1);
+    border: 1px solid var(--border-0);
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+  }
+  .browse-controls select:focus { border-color: var(--border-1); }
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; letter-spacing: 1.5px;
+    padding: 0.5rem 1rem;
+    background: var(--bg-3);
+    color: var(--text-1);
+    border: 1px solid var(--border-1);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn:hover { background: var(--bg-hover); color: var(--text-0); }
+  .browse-summary {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; color: var(--text-3);
+    letter-spacing: 2px; margin: 1rem 0;
+  }
+
+  /* ═══ HEATMAP / BREAKDOWN ═══ */
+  .breakdown-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .breakdown-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border-0);
+    border-radius: 10px;
+    padding: 1.5rem;
+  }
+  .breakdown-card-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 2.5px;
+    color: var(--text-3); margin-bottom: 1.25rem;
+    text-transform: uppercase;
+  }
+  .breakdown-list { list-style: none; }
+  .breakdown-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .breakdown-item:last-child { border-bottom: none; }
+  .breakdown-rank {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; color: var(--text-3);
+    width: 1.5rem; text-align: right;
+  }
+  .breakdown-name {
+    flex: 1; font-size: 0.8rem; color: var(--text-1);
+  }
+  .breakdown-bar-wrap {
+    width: 120px; height: 6px;
+    background: var(--bg-3);
+    border-radius: 3px; overflow: hidden;
+  }
+  .breakdown-bar {
+    height: 100%; border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  .breakdown-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem; color: var(--text-3);
+    width: 3rem; text-align: right;
+  }
+
+  /* ═══ LOADING ═══ */
+  .loading-bar {
+    height: 2px; background: var(--bg-3); border-radius: 1px; overflow: hidden;
+    margin: 1rem 0;
+  }
+  .loading-bar-inner {
+    height: 100%; width: 25%; background: var(--text-3);
+    animation: loadSlide 1s ease-in-out infinite;
+  }
+  @keyframes loadSlide { 0%{transform:translateX(-100%)} 100%{transform:translateX(500%)} }
+  .loading-bar.hidden { display: none; }
+
+  /* ═══ EMPTY STATE ═══ */
+  .empty-state {
+    text-align: center; padding: 3rem 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem; color: var(--text-3);
+    letter-spacing: 1px;
+  }
+
+  /* ═══ FOOTER ═══ */
+  footer {
+    border-top: 1px solid var(--border-0);
+    padding: 1.5rem;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem; letter-spacing: 2px;
+    color: var(--text-3);
+  }
+  footer a { color: var(--text-2); text-decoration: none; }
+  footer a:hover { color: var(--text-0); }
+
+  /* ═══ SCROLLBAR ═══ */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg-0); }
+  ::-webkit-scrollbar-thumb { background: var(--border-0); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-1); }
+
+  /* ═══ RESPONSIVE ═══ */
+  @media (max-width: 1024px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .breakdown-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 768px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .ticker-tile { width: 14px; height: 22px; }
+    .ticker-tile-inner { font-size: 0.55rem; }
+    .nav-links a { font-size: 0.55rem; padding: 0.3rem 0.5rem; }
+    .group-grid { grid-template-columns: 1fr; }
+    .stat-vesta-tile { width: 22px; height: 30px; }
+    .stat-vesta-tile-inner { font-size: 0.9rem; }
+    .threat-level-wrap { flex-direction: column; align-items: flex-start; }
+    .news-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr; }
+    .container { padding: 0 1rem; }
+    .stat-vesta-tile { width: 20px; height: 28px; }
+    .stat-vesta-tile-inner { font-size: 0.85rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ NAV ═══ -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-brand"><span class="pulse"></span>RANSOMBOARD</div>
+    <div class="nav-links">
+      <a href="#dashboard">DASHBOARD</a>
+      <a href="#search-section">SEARCH</a>
+      <a href="#groups-section">GROUPS</a>
+      <a href="#trends-section">TRENDS</a>
+      <a href="#browse-section">BROWSE</a>
+      <a href="#attacks-section">ATTACKS</a>
+      <a href="#news-section">NEWS</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<!-- ═══ TICKER ═══ -->
+<section id="ticker">
+  <div class="container">
+    <div class="ticker-board" id="ticker-board"></div>
+  </div>
+</section>
+
+<!-- ═══ DASHBOARD ═══ -->
+<section id="dashboard">
+  <div class="container">
+    <div class="stats-row">
+      <div class="stat-vesta">
+        <div class="stat-vesta-label">TOTAL VICTIMS</div>
+        <div class="stat-vesta-board" id="vb-total"></div>
+        <div class="stat-vesta-sub" id="vb-total-sub">loading...</div>
+      </div>
+      <div class="stat-vesta">
+        <div class="stat-vesta-label">ACTIVE GROUPS</div>
+        <div class="stat-vesta-board" id="vb-groups"></div>
+        <div class="stat-vesta-sub">tracked groups</div>
+      </div>
+      <div class="stat-vesta">
+        <div class="stat-vesta-label">LAST 24 HOURS</div>
+        <div class="stat-vesta-board" id="vb-today"></div>
+        <div class="stat-vesta-sub">new disclosures</div>
+      </div>
+      <div class="stat-vesta">
+        <div class="stat-vesta-label">THIS MONTH</div>
+        <div class="stat-vesta-board" id="vb-month"></div>
+        <div class="stat-vesta-sub" id="vb-month-label">loading...</div>
+      </div>
+    </div>
+
+    <!-- THREAT LEVEL GAUGE -->
+    <div class="threat-level-wrap">
+      <div class="threat-gauge">
+        <div class="threat-gauge-bar">
+          <div class="threat-gauge-seg" id="tg-1"></div>
+          <div class="threat-gauge-seg" id="tg-2"></div>
+          <div class="threat-gauge-seg" id="tg-3"></div>
+          <div class="threat-gauge-seg" id="tg-4"></div>
+          <div class="threat-gauge-seg" id="tg-5"></div>
+        </div>
+        <span class="threat-label" id="threat-label" style="color:var(--text-3)">CALCULATING...</span>
+      </div>
+      <div class="threat-detail" id="threat-detail">Analyzing recent attack velocity...</div>
+      <div class="live-clock">
+        <span class="dot-live"></span>
+        <span id="live-clock-text">--:--:-- UTC</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ SEARCH ═══ -->
+<section id="search-section" class="search-section">
+  <div class="container">
+    <div class="search-bar-wrap">
+      <span class="search-icon">&#x1F50D;</span>
+      <input type="text" class="search-bar" id="search-input"
+             placeholder="Search companies, groups, countries...">
+    </div>
+    <div class="search-filters">
+      <span class="filter-chip active" data-filter="all">ALL</span>
+      <span class="filter-chip" data-filter="victim">COMPANIES</span>
+      <span class="filter-chip" data-filter="group">GROUPS</span>
+    </div>
+    <div class="search-results" id="search-results">
+      <div class="search-results-count" id="search-results-count"></div>
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>DATE</th>
+              <th>COMPANY / VICTIM</th>
+              <th>GROUP</th>
+              <th>COUNTRY</th>
+              <th>SECTOR</th>
+            </tr>
+          </thead>
+          <tbody id="search-results-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="search-pagination"></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ RECENT FEED ═══ -->
+<section id="feed-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-title">Recent Disclosures</span>
+      <div class="export-bar">
+        <button class="export-btn" onclick="exportCSV(allVictims, 'recent-victims')">EXPORT CSV</button>
+        <button class="export-btn" onclick="exportJSON(allVictims, 'recent-victims')">EXPORT JSON</button>
+      </div>
+    </div>
+    <div class="loading-bar" id="feed-loading"><div class="loading-bar-inner"></div></div>
+    <div class="data-table-wrap">
+      <table class="data-table" id="feed-table">
+        <thead>
+          <tr>
+            <th data-sort="date">DATE <span class="sort-arrow">▼</span></th>
+            <th data-sort="name">VICTIM</th>
+            <th data-sort="group">GROUP</th>
+            <th>COUNTRY</th>
+            <th>SECTOR</th>
+          </tr>
+        </thead>
+        <tbody id="feed-body"></tbody>
+      </table>
+      <div class="pagination" id="feed-pagination"></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ GROUP PROFILES ═══ -->
+<section id="groups-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-title">Ransomware Groups</span>
+    </div>
+    <div class="group-grid" id="group-grid"></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ TRENDS / CHARTS ═══ -->
+<section id="trends-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-title">Attack Trends</span>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-card-title">Monthly Attack Volume</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-timeline"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">Top Groups This Year</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-groups"></canvas></div>
+      </div>
+    </div>
+
+    <div class="breakdown-grid" style="margin-top:1rem;">
+      <div class="breakdown-card">
+        <div class="breakdown-card-title">Top Targeted Countries</div>
+        <ul class="breakdown-list" id="breakdown-countries"></ul>
+      </div>
+      <div class="breakdown-card">
+        <div class="breakdown-card-title">Top Targeted Sectors</div>
+        <ul class="breakdown-list" id="breakdown-sectors"></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ BROWSE ═══ -->
+<section id="browse-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-title">Browse by Period</span>
+      <div class="browse-controls">
+        <select id="browse-year"></select>
+        <select id="browse-month">
+          <option value="">ALL MONTHS</option>
+          <option value="01">JAN</option><option value="02">FEB</option>
+          <option value="03">MAR</option><option value="04">APR</option>
+          <option value="05">MAY</option><option value="06">JUN</option>
+          <option value="07">JUL</option><option value="08">AUG</option>
+          <option value="09">SEP</option><option value="10">OCT</option>
+          <option value="11">NOV</option><option value="12">DEC</option>
+        </select>
+        <button class="btn" onclick="fetchBrowseData()">SEARCH</button>
+      </div>
+    </div>
+    <div class="loading-bar hidden" id="browse-loading"><div class="loading-bar-inner"></div></div>
+    <div class="browse-summary" id="browse-summary"></div>
+    <div id="browse-table-wrap" style="display:none;">
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>DATE</th><th>VICTIM</th><th>GROUP</th><th>COUNTRY</th><th>SECTOR</th>
+          </tr></thead>
+          <tbody id="browse-body"></tbody>
+        </table>
+        <div class="pagination" id="browse-pagination"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ ALL ATTACKS ═══ -->
+<section id="attacks-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-title">All Cyber Attacks</span>
+    </div>
+    <div class="loading-bar" id="attacks-loading"><div class="loading-bar-inner"></div></div>
+    <div class="data-table-wrap" id="attacks-table-wrap" style="display:none;">
+      <table class="data-table">
+        <thead><tr>
+          <th>DATE</th><th>TARGET</th><th>GROUP</th><th>COUNTRY</th><th>DETAILS</th>
+        </tr></thead>
+        <tbody id="attacks-body"></tbody>
+      </table>
+      <div class="pagination" id="attacks-pagination"></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ RANSOMWARE NEWS ═══ -->
+<section id="news-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-title">Ransomware News</span>
+    </div>
+    <div class="loading-bar" id="news-loading"><div class="loading-bar-inner"></div></div>
+    <div class="news-grid" id="news-grid"></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══ WEEKLY DIGEST ═══ -->
+<section id="digest-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-title">Weekly Digest</span>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-card-title">Last 7 Days — Daily Volume</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-weekly"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">7-Day Group Activity</div>
+        <div id="weekly-group-list" class="breakdown-list" style="max-height:280px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="container">
+    DATA SOURCE: <a href="https://www.ransomware.live" target="_blank">RANSOMWARE.LIVE</a>
+    &nbsp;&middot;&nbsp; RANSOMBOARD THREAT INTELLIGENCE DASHBOARD
+  </div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// RANSOMBOARD v2.0 — Professional Threat Intelligence Dashboard
+// ═══════════════════════════════════════════════════════════════
+
+const API = '/api';
+const COLS = 60;
+const PER_PAGE = 25;
+
+// ── State ──
+let allVictims = [];
+let browseResults = [];
+let attackResults = [];
+let searchResults = [];
+let feedPage = 0, browsePage = 0, attacksPage = 0, searchPage = 0;
+let searchFilter = 'all';
+let feedSort = { key: 'date', dir: -1 };
+
+// ── Utilities ──
+const esc = s => { if (!s) return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; };
+const fmtDate = s => { if (!s) return '—'; const d = new Date(s); return isNaN(d) ? String(s).slice(0,10) : d.toISOString().slice(0,10); };
+const getDate = v => v.discovered || v.published || v.date || '';
+const getName = v => v.post_title || v.victim || v.name || 'Unknown';
+const getGroup = v => v.group_name || v.group || '';
+const getCountry = v => v.country || '';
+const getSector = v => v.activity || v.sector || '';
+
+// ── API ──
+async function api(endpoint, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const r = await fetch(`${API}${endpoint}`, { signal: AbortSignal.timeout(20000) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } catch (e) {
+      console.warn(`API [${i+1}] ${endpoint}: ${e.message}`);
+      if (i < retries) await new Promise(r => setTimeout(r, 1500 * (i + 1)));
+    }
+  }
+  return null;
+}
+
+function normalizeArray(data) {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object') return data.data || data.victims || data.results || [];
+  return [];
+}
+
+// ── Ticker ──
+function initTicker() {
+  const board = document.getElementById('ticker-board');
+  for (let c = 0; c < COLS; c++) {
+    const tile = document.createElement('div');
+    tile.className = 'ticker-tile';
+    tile.innerHTML = '<div class="ticker-tile-inner blank"></div>';
+    board.appendChild(tile);
+  }
+}
+
+function setTicker(text, color = '') {
+  const tiles = document.querySelectorAll('#ticker-board .ticker-tile-inner');
+  const upper = text.toUpperCase().padEnd(COLS).slice(0, COLS);
+  tiles.forEach((tile, i) => {
+    const ch = upper[i];
+    const delay = i * 12 + Math.random() * 30;
+    setTimeout(() => {
+      tile.className = 'ticker-tile-inner';
+      if (ch === ' ') { tile.className += ' blank'; tile.textContent = ''; }
+      else {
+        tile.textContent = ch;
+        tile.classList.add('flipping');
+        if (color) tile.classList.add(color);
+        setTimeout(() => tile.classList.remove('flipping'), 300);
+      }
+    }, delay);
+  });
+}
+
+function rotateTicker() {
+  if (allVictims.length === 0) return;
+  const idx = Math.floor(Math.random() * Math.min(allVictims.length, 50));
+  const v = allVictims[idx];
+  const name = getName(v).toUpperCase().slice(0, 28);
+  const group = getGroup(v).toUpperCase().slice(0, 14);
+  const date = fmtDate(getDate(v));
+  const msg = `  ${date}  ${name.padEnd(29)} ${group.padStart(15)}`;
+  setTicker(msg, 'red');
+}
+
+// ── Vestaboard Stat Tiles ──
+function initStatBoard(id, digits) {
+  const board = document.getElementById(id);
+  board.innerHTML = '';
+  for (let i = 0; i < digits; i++) {
+    const tile = document.createElement('div');
+    tile.className = 'stat-vesta-tile';
+    tile.innerHTML = '<div class="stat-vesta-tile-inner blank">—</div>';
+    board.appendChild(tile);
+  }
+}
+
+function setStatBoard(id, value, color = '') {
+  const board = document.getElementById(id);
+  const tiles = board.querySelectorAll('.stat-vesta-tile-inner');
+  const str = String(value).padStart(tiles.length);
+  tiles.forEach((tile, i) => {
+    const ch = str[i];
+    const delay = i * 80 + Math.random() * 60;
+    setTimeout(() => {
+      tile.className = 'stat-vesta-tile-inner';
+      if (ch === ' ' || ch === undefined) {
+        tile.className += ' blank';
+        tile.textContent = '';
+      } else {
+        tile.textContent = ch;
+        tile.classList.add('flipping');
+        if (color) tile.classList.add(color);
+        setTimeout(() => tile.classList.remove('flipping'), 300);
+      }
+    }, delay);
+  });
+}
+
+function updateStats(victims) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const yesterday = new Date(now - 86400000);
+  const week = new Date(now - 7 * 86400000);
+  const groups = new Set();
+  let yc = 0, mc = 0, dc = 0, wc = 0;
+  victims.forEach(v => {
+    const d = new Date(getDate(v));
+    if (isNaN(d)) return;
+    groups.add(getGroup(v));
+    if (d.getFullYear() === year) yc++;
+    if (d.getFullYear() === year && d.getMonth() === month) mc++;
+    if (d >= yesterday) dc++;
+    if (d >= week) wc++;
+  });
+
+  // Determine digit widths
+  const totalDigits = Math.max(4, String(yc).length);
+  const groupDigits = Math.max(3, String(groups.size).length);
+  const todayDigits = Math.max(3, String(dc).length);
+  const monthDigits = Math.max(4, String(mc).length);
+
+  initStatBoard('vb-total', totalDigits);
+  initStatBoard('vb-groups', groupDigits);
+  initStatBoard('vb-today', todayDigits);
+  initStatBoard('vb-month', monthDigits);
+
+  setTimeout(() => {
+    setStatBoard('vb-total', yc.toLocaleString(), 'red');
+    setStatBoard('vb-groups', groups.size.toLocaleString());
+    setStatBoard('vb-today', dc.toLocaleString(), dc > 20 ? 'red' : dc > 5 ? 'orange' : 'green');
+    setStatBoard('vb-month', mc.toLocaleString(), 'red');
+  }, 200);
+
+  document.getElementById('vb-total-sub').textContent = `in ${year}`;
+  document.getElementById('vb-month-label').textContent = monthNames[month] + ' ' + year;
+
+  // Threat level gauge
+  updateThreatGauge(dc, wc, victims.length);
+}
+
+function updateThreatGauge(dailyCount, weeklyCount, totalInDataset) {
+  // Compute threat level 1-5 based on daily velocity
+  const avgDaily = weeklyCount / 7;
+  let level = 1;
+  if (avgDaily > 30) level = 5;
+  else if (avgDaily > 20) level = 4;
+  else if (avgDaily > 10) level = 3;
+  else if (avgDaily > 5) level = 2;
+
+  const classes = ['active-green','active-green','active-yellow','active-orange','active-red','active-critical'];
+  const labels = ['LOW','GUARDED','ELEVATED','HIGH','CRITICAL'];
+  const colors = ['var(--green)','var(--green)','#ccbb33','var(--orange)','var(--red)','#ff2244'];
+
+  for (let i = 1; i <= 5; i++) {
+    const seg = document.getElementById(`tg-${i}`);
+    seg.className = 'threat-gauge-seg';
+    if (i <= level) seg.classList.add(classes[level]);
+  }
+
+  const labelEl = document.getElementById('threat-label');
+  labelEl.textContent = labels[level - 1];
+  labelEl.style.color = colors[level];
+
+  const detailEl = document.getElementById('threat-detail');
+  detailEl.textContent = `${dailyCount} attacks in 24h · avg ${avgDaily.toFixed(1)}/day this week · ${totalInDataset.toLocaleString()} in dataset`;
+}
+
+// ── Live Clock ──
+function startClock() {
+  function tick() {
+    const now = new Date();
+    const utc = now.toISOString().slice(11, 19);
+    document.getElementById('live-clock-text').textContent = `${utc} UTC`;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+// ── Export Functions ──
+function exportCSV(data, filename) {
+  if (!data.length) return;
+  const headers = ['Date','Victim','Group','Country','Sector'];
+  const rows = data.map(v =>
+    [fmtDate(getDate(v)), getName(v), getGroup(v), getCountry(v), getSector(v)]
+      .map(f => `"${String(f).replace(/"/g, '""')}"`)
+      .join(',')
+  );
+  const csv = [headers.join(','), ...rows].join('\n');
+  downloadBlob(csv, `${filename}.csv`, 'text/csv');
+}
+
+function exportJSON(data, filename) {
+  const clean = data.map(v => ({
+    date: fmtDate(getDate(v)),
+    victim: getName(v),
+    group: getGroup(v),
+    country: getCountry(v),
+    sector: getSector(v)
+  }));
+  downloadBlob(JSON.stringify(clean, null, 2), `${filename}.json`, 'application/json');
+}
+
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Table Rendering ──
+function renderRows(tbody, victims, page) {
+  tbody.innerHTML = '';
+  const start = page * PER_PAGE;
+  const slice = victims.slice(start, start + PER_PAGE);
+  if (!slice.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">NO DATA FOUND</td></tr>';
+    return;
+  }
+  slice.forEach(v => {
+    const tr = document.createElement('tr');
+    const group = getGroup(v);
+    tr.innerHTML = `
+      <td class="date-cell">${fmtDate(getDate(v))}</td>
+      <td class="name-cell">${esc(getName(v))}</td>
+      <td><span class="tag tag-red">${esc(group || '—')}</span></td>
+      <td>${getCountry(v) ? `<span class="tag tag-blue">${esc(getCountry(v))}</span>` : '<span style="color:var(--text-3)">—</span>'}</td>
+      <td style="color:var(--text-3);font-size:0.75rem">${esc(getSector(v)) || '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderPagination(id, data, page, setFn) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  const total = Math.ceil(data.length / PER_PAGE);
+  if (total <= 1) return;
+  const prev = document.createElement('button');
+  prev.textContent = '← PREV'; prev.disabled = page === 0;
+  prev.onclick = () => setFn(page - 1);
+  const info = document.createElement('span');
+  info.className = 'page-info';
+  info.textContent = `${page + 1} OF ${total}`;
+  const next = document.createElement('button');
+  next.textContent = 'NEXT →'; next.disabled = page >= total - 1;
+  next.onclick = () => setFn(page + 1);
+  el.append(prev, info, next);
+}
+
+// ── Feed ──
+function renderFeed() {
+  renderRows(document.getElementById('feed-body'), allVictims, feedPage);
+  renderPagination('feed-pagination', allVictims, feedPage, p => { feedPage = p; renderFeed(); });
+}
+
+// ── Search ──
+function doSearch() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const resultsEl = document.getElementById('search-results');
+  if (q.length < 2) { resultsEl.style.display = 'none'; return; }
+  resultsEl.style.display = 'block';
+  searchResults = allVictims.filter(v => {
+    const txt = `${getName(v)} ${getGroup(v)} ${getCountry(v)} ${getSector(v)}`.toLowerCase();
+    if (!txt.includes(q)) return false;
+    if (searchFilter === 'victim') return getName(v).toLowerCase().includes(q);
+    if (searchFilter === 'group') return getGroup(v).toLowerCase().includes(q);
+    return true;
+  });
+  searchPage = 0;
+  document.getElementById('search-results-count').textContent =
+    `${searchResults.length} RESULT${searchResults.length !== 1 ? 'S' : ''} FOR "${q.toUpperCase()}"`;
+  renderSearchResults();
+}
+
+function renderSearchResults() {
+  renderRows(document.getElementById('search-results-body'), searchResults, searchPage);
+  renderPagination('search-pagination', searchResults, searchPage, p => { searchPage = p; renderSearchResults(); });
+}
+
+// ── Group Profiles ──
+function renderGroups(victims) {
+  const counts = {};
+  const lastSeen = {};
+  victims.forEach(v => {
+    const g = getGroup(v);
+    if (!g) return;
+    counts[g] = (counts[g] || 0) + 1;
+    const d = getDate(v);
+    if (d && (!lastSeen[g] || d > lastSeen[g])) lastSeen[g] = d;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const maxCount = sorted.length ? sorted[0][1] : 1;
+  const grid = document.getElementById('group-grid');
+  grid.innerHTML = '';
+  sorted.slice(0, 24).forEach(([name, count]) => {
+    const card = document.createElement('div');
+    card.className = 'group-card';
+    card.onclick = () => {
+      document.getElementById('search-input').value = name;
+      searchFilter = 'group';
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === 'group'));
+      doSearch();
+      document.getElementById('search-section').scrollIntoView({ behavior: 'smooth' });
+    };
+    card.innerHTML = `
+      <div class="group-card-header">
+        <span class="group-card-name">${esc(name.toUpperCase())}</span>
+        <span class="group-card-count">${count}</span>
+      </div>
+      <div class="group-card-bar"><div class="group-card-bar-fill" style="width:${(count/maxCount*100).toFixed(1)}%"></div></div>
+      <div class="group-card-meta">
+        <span>Last: ${fmtDate(lastSeen[name])}</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// ── Charts ──
+let chartTimeline = null, chartGroups = null;
+
+function renderCharts(victims) {
+  // Monthly volume
+  const monthlyCounts = {};
+  const groupCounts = {};
+  const now = new Date();
+  victims.forEach(v => {
+    const d = new Date(getDate(v));
+    if (isNaN(d)) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    monthlyCounts[key] = (monthlyCounts[key] || 0) + 1;
+    if (d.getFullYear() === now.getFullYear()) {
+      const g = getGroup(v) || 'Unknown';
+      groupCounts[g] = (groupCounts[g] || 0) + 1;
+    }
+  });
+
+  const sortedMonths = Object.keys(monthlyCounts).sort().slice(-18);
+  const monthLabels = sortedMonths.map(m => {
+    const [y, mo] = m.split('-');
+    const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${names[parseInt(mo)-1]} ${y.slice(2)}`;
+  });
+
+  const chartOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 10 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 10 } } }
+    }
+  };
+
+  if (chartTimeline) chartTimeline.destroy();
+  chartTimeline = new Chart(document.getElementById('chart-timeline'), {
+    type: 'bar',
+    data: {
+      labels: monthLabels,
+      datasets: [{
+        data: sortedMonths.map(m => monthlyCounts[m]),
+        backgroundColor: 'rgba(224, 64, 80, 0.6)',
+        borderColor: 'rgba(224, 64, 80, 0.9)',
+        borderWidth: 1, borderRadius: 3
+      }]
+    },
+    options: chartOpts
+  });
+
+  const topGroups = Object.entries(groupCounts).sort((a,b) => b[1]-a[1]).slice(0, 8);
+  const groupColors = ['#e04050','#dd8833','#4488dd','#44bb66','#8866cc','#cc6688','#55aaaa','#aa8844'];
+
+  if (chartGroups) chartGroups.destroy();
+  chartGroups = new Chart(document.getElementById('chart-groups'), {
+    type: 'doughnut',
+    data: {
+      labels: topGroups.map(g => g[0].toUpperCase()),
+      datasets: [{ data: topGroups.map(g => g[1]), backgroundColor: groupColors.slice(0, topGroups.length), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#888', font: { family: 'JetBrains Mono', size: 9 }, padding: 8, boxWidth: 10 }
+        }
+      }
+    }
+  });
+}
+
+// ── Breakdowns ──
+function renderBreakdowns(victims) {
+  const countries = {}, sectors = {};
+  victims.forEach(v => {
+    const c = getCountry(v); if (c) countries[c] = (countries[c] || 0) + 1;
+    const s = getSector(v); if (s) sectors[s] = (sectors[s] || 0) + 1;
+  });
+  fillBreakdown('breakdown-countries', countries, 'var(--blue)');
+  fillBreakdown('breakdown-sectors', sectors, 'var(--orange)');
+}
+
+function fillBreakdown(id, data, color) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  const sorted = Object.entries(data).sort((a,b) => b[1]-a[1]).slice(0, 10);
+  const max = sorted.length ? sorted[0][1] : 1;
+  sorted.forEach(([name, count], i) => {
+    const li = document.createElement('li');
+    li.className = 'breakdown-item';
+    li.innerHTML = `
+      <span class="breakdown-rank">${i+1}</span>
+      <span class="breakdown-name">${esc(name)}</span>
+      <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${(count/max*100).toFixed(1)}%;background:${color}"></div></div>
+      <span class="breakdown-count">${count.toLocaleString()}</span>
+    `;
+    el.appendChild(li);
+  });
+  if (!sorted.length) el.innerHTML = '<li class="empty-state">NO DATA</li>';
+}
+
+// ── Browse ──
+function initBrowseControls() {
+  const sel = document.getElementById('browse-year');
+  for (let y = new Date().getFullYear(); y >= 2020; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    sel.appendChild(o);
+  }
+}
+
+async function fetchBrowseData() {
+  const year = document.getElementById('browse-year').value;
+  const month = document.getElementById('browse-month').value;
+  document.getElementById('browse-loading').classList.remove('hidden');
+  document.getElementById('browse-table-wrap').style.display = 'none';
+  document.getElementById('browse-summary').textContent = '';
+
+  let ep = `/victims/${year}`;
+  if (month) ep += `/${month}`;
+  let data = await api(ep);
+  if (!data) data = await api(`/v1/victims/${year}${month ? '/'+month : ''}`);
+  document.getElementById('browse-loading').classList.add('hidden');
+
+  browseResults = normalizeArray(data);
+  browsePage = 0;
+  const monthNames = ['','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const period = month ? `${monthNames[parseInt(month)]} ${year}` : year;
+  document.getElementById('browse-summary').textContent =
+    `${browseResults.length.toLocaleString()} VICTIMS  //  ${period}`;
+  document.getElementById('browse-table-wrap').style.display = browseResults.length ? 'block' : 'none';
+  renderBrowse();
+}
+
+function renderBrowse() {
+  renderRows(document.getElementById('browse-body'), browseResults, browsePage);
+  renderPagination('browse-pagination', browseResults, browsePage, p => { browsePage = p; renderBrowse(); });
+}
+
+// ── Attacks ──
+async function fetchAttacks() {
+  let data = await api('/allcyberattacks');
+  if (!data) data = await api('/v1/allcyberattacks');
+  document.getElementById('attacks-loading').classList.add('hidden');
+  attackResults = normalizeArray(data);
+  attacksPage = 0;
+  document.getElementById('attacks-table-wrap').style.display = attackResults.length ? 'block' : 'none';
+  if (!attackResults.length) {
+    document.getElementById('attacks-table-wrap').style.display = 'block';
+    document.getElementById('attacks-body').innerHTML = '<tr><td colspan="5" class="empty-state">NO CYBER ATTACKS DATA — ENDPOINT MAY REQUIRE API KEY</td></tr>';
+  }
+  renderAttacks();
+}
+
+function renderAttacks() {
+  const tbody = document.getElementById('attacks-body');
+  tbody.innerHTML = '';
+  const start = attacksPage * PER_PAGE;
+  const slice = attackResults.slice(start, start + PER_PAGE);
+  slice.forEach(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="date-cell">${fmtDate(a.date || a.discovered || a.published || '')}</td>
+      <td class="name-cell">${esc(a.title || a.post_title || a.victim || a.name || 'Unknown')}</td>
+      <td>${(a.group_name || a.group) ? `<span class="tag tag-red">${esc(a.group_name || a.group)}</span>` : '—'}</td>
+      <td>${a.country ? `<span class="tag tag-blue">${esc(a.country)}</span>` : '—'}</td>
+      <td style="color:var(--text-3);font-size:0.75rem">${esc(a.description || a.activity || a.sector || '—')}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  renderPagination('attacks-pagination', attackResults, attacksPage, p => { attacksPage = p; renderAttacks(); });
+}
+
+// ── Event Listeners ──
+function initEvents() {
+  // Search
+  let searchTimeout;
+  document.getElementById('search-input').addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(doSearch, 250);
+  });
+
+  // Filter chips
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      searchFilter = chip.dataset.filter;
+      doSearch();
+    });
+  });
+}
+
+// ── News Feed ──
+async function fetchNews() {
+  let data = await api('/recentcyberattacks');
+  if (!data) data = await api('/v1/recentcyberattacks');
+  if (!data) data = await api('/news');
+  document.getElementById('news-loading').classList.add('hidden');
+
+  const news = normalizeArray(data);
+  const grid = document.getElementById('news-grid');
+
+  if (!news.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">NEWS FEED UNAVAILABLE — ENDPOINT MAY NOT EXIST IN FREE API</div>';
+    return;
+  }
+
+  grid.innerHTML = '';
+  news.slice(0, 12).forEach(n => {
+    const card = document.createElement('div');
+    card.className = 'news-card';
+    const title = n.title || n.post_title || n.victim || n.name || 'Untitled';
+    const date = fmtDate(n.date || n.discovered || n.published || '');
+    const group = n.group_name || n.group || '';
+    const url = n.url || n.post_url || n.website || '';
+    card.innerHTML = `
+      <div class="news-card-title">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(title)}</a>` : esc(title)}</div>
+      <div class="news-card-meta">
+        <span>${date}</span>
+        ${group ? `<span class="tag tag-red">${esc(group)}</span>` : ''}
+        ${n.country ? `<span class="tag tag-blue">${esc(n.country)}</span>` : ''}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// ── Weekly Digest ──
+let chartWeekly = null;
+
+function renderWeeklyDigest(victims) {
+  const now = new Date();
+  const days = [];
+  const dayCounts = {};
+  const weekGroups = {};
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now - i * 86400000);
+    const key = d.toISOString().slice(0, 10);
+    days.push(key);
+    dayCounts[key] = 0;
+  }
+
+  victims.forEach(v => {
+    const d = new Date(getDate(v));
+    if (isNaN(d)) return;
+    const key = d.toISOString().slice(0, 10);
+    if (dayCounts[key] !== undefined) {
+      dayCounts[key]++;
+      const g = getGroup(v) || 'Unknown';
+      weekGroups[g] = (weekGroups[g] || 0) + 1;
+    }
+  });
+
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const labels = days.map(d => {
+    const dt = new Date(d);
+    return `${dayNames[dt.getUTCDay()]} ${d.slice(5)}`;
+  });
+
+  const chartOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 10 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true }
+    }
+  };
+
+  if (chartWeekly) chartWeekly.destroy();
+  chartWeekly = new Chart(document.getElementById('chart-weekly'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: days.map(d => dayCounts[d]),
+        borderColor: 'rgba(224, 64, 80, 0.9)',
+        backgroundColor: 'rgba(224, 64, 80, 0.15)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: '#e04050'
+      }]
+    },
+    options: chartOpts
+  });
+
+  // Weekly group list
+  const list = document.getElementById('weekly-group-list');
+  list.innerHTML = '';
+  const sorted = Object.entries(weekGroups).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const max = sorted.length ? sorted[0][1] : 1;
+  sorted.forEach(([name, count], i) => {
+    const li = document.createElement('li');
+    li.className = 'breakdown-item';
+    li.innerHTML = `
+      <span class="breakdown-rank">${i + 1}</span>
+      <span class="breakdown-name">${esc(name)}</span>
+      <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${(count/max*100).toFixed(1)}%;background:var(--red)"></div></div>
+      <span class="breakdown-count">${count}</span>
+    `;
+    list.appendChild(li);
+  });
+  if (!sorted.length) list.innerHTML = '<li class="empty-state">NO DATA THIS WEEK</li>';
+}
+
+// ══════════════════
+// ── INIT ──
+// ══════════════════
+async function init() {
+  initTicker();
+  initBrowseControls();
+  initEvents();
+  startClock();
+
+  // Init stat boards with placeholder tiles
+  initStatBoard('vb-total', 4);
+  initStatBoard('vb-groups', 3);
+  initStatBoard('vb-today', 3);
+  initStatBoard('vb-month', 4);
+
+  setTicker('  RANSOMBOARD  //  CONNECTING TO API...', 'dim');
+
+  // Fetch victims
+  let data = await api('/recentvictims');
+  if (!data) data = await api('/v1/recentvictims');
+  document.getElementById('feed-loading').classList.add('hidden');
+
+  allVictims = normalizeArray(data);
+
+  if (allVictims.length === 0) {
+    setTicker('  CONNECTION ERROR — RUN: NODE SERVER.JS  //  LOCALHOST:3000', 'red');
+    return;
+  }
+
+  // Sort by date descending
+  allVictims.sort((a, b) => {
+    const da = new Date(getDate(a)), db = new Date(getDate(b));
+    return (isNaN(db) ? 0 : db) - (isNaN(da) ? 0 : da);
+  });
+
+  // Populate everything
+  const latest = allVictims[0];
+  setTicker(`  LATEST: ${getName(latest).toUpperCase().slice(0,26).padEnd(27)} BY ${getGroup(latest).toUpperCase().slice(0,14).padEnd(15)} ${fmtDate(getDate(latest))}`, 'red');
+
+  updateStats(allVictims);
+  renderFeed();
+  renderGroups(allVictims);
+  renderCharts(allVictims);
+  renderBreakdowns(allVictims);
+  renderWeeklyDigest(allVictims);
+
+  // Fetch attacks & news in background
+  fetchAttacks();
+  fetchNews();
+
+  // Rotate ticker
+  setInterval(rotateTicker, 10000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
